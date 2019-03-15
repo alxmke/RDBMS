@@ -2,7 +2,7 @@
 
 ## Logistics
 
-**Due date: Wednesday 10/31/2018, 11:59:59 PM**
+**Due date: Friday 4/5/2019, 11:59:59 PM**
 
 ## Background
 A query optimizer attempts to find the optimal execution plan for a SQL statement. The optimizer selects the plan with the lowest estimated cost among all considered candidate plans. The optimizer uses available statistics to estimate cost. Because the database has many internal statistics and tools at its disposal, the optimizer is usually in a better position than the user to determine the optimal method of statement execution.
@@ -231,5 +231,8 @@ The next part of the search algorithm involves finding the lowest cost join betw
 Your final task is to write the outermost driver method of the optimizer, `QueryPlan#executeOptimal`. This method should invoke the various passes of the Selinger dynamic programming algorithm, and in the end return the optimal plan for the full set of tables. You first have to find the optimal single table access plan for all the individual tables that you want to join, and then recursively use `QueryPlan#minCostJoins` to find the best joins between tables until all tables have been joined together. Finally, you have to add the remaining groupBy and project operators that are part of the query but have not been added to the query plan so far.  After implementing all the methods up to this point, you should be passing all of the tests in `TestOptimizationJoins` and `TestBasicQuery`.
 
 ## Step 3: Submitting the Assignment
-Details will be posted at a later date.
-
+To submit, make sure your are in your Sp19HW3 folder. Then run:
+```
+python3 turn_in.py --student-id <your_studentid_here> --assignment hw4
+```
+but replace `<your_studentid_here>` with your actual student ID (not your edx username!). This will generate a zip file called `hw4.zip` which you should then upload to edx.
