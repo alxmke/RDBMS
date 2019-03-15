@@ -231,7 +231,7 @@ The next part of the search algorithm involves finding the lowest cost join betw
 Your final task is to write the outermost driver method of the optimizer, `QueryPlan#executeOptimal`. This method should invoke the various passes of the Selinger dynamic programming algorithm, and in the end return the optimal plan for the full set of tables. You first have to find the optimal single table access plan for all the individual tables that you want to join, and then recursively use `QueryPlan#minCostJoins` to find the best joins between tables until all tables have been joined together. Finally, you have to add the remaining groupBy and project operators that are part of the query but have not been added to the query plan so far.  After implementing all the methods up to this point, you should be passing all of the tests in `TestOptimizationJoins` and `TestBasicQuery`.
 
 ## Step 3: Submitting the Assignment
-To submit, make sure your are in your Sp19HW3 folder. Then run:
+To submit, make sure your are in your Sp19HW4 folder. Then run:
 ```
 python3 turn_in.py --student-id <your_studentid_here> --assignment hw4
 ```
