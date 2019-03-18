@@ -236,4 +236,7 @@ To submit, make sure your are in your Sp19HW4 folder. Then run:
 python3 turn_in.py --student-id <your_studentid_here> --assignment hw4
 ```
 but replace `<your_studentid_here>` with your actual student ID (not your edx username!). This will generate a zip file called `hw4.zip` which you should then upload to edx.
+<<<<<<< HEAD
 
+=======
+>>>>>>> cb9e790752226216ac921302a94f8030f12f098a
