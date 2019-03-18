@@ -13,4 +13,4 @@ This document will help you set up IntelliJ for running a homework's tests
    - Test kind: Category
    - Category: edu.berkeley.cs186.database.categories.HW4Tests (or the category corresponding to the homework you're setting up)
    - Search for tests: In whole project
-4. You should now see HW4 tests in the dropdown in the top right. You can run/debug this configuration to run all the HW2 tests.
+4. You should now see HW4 tests in the dropdown in the top right. You can run/debug this configuration to run all the HW4 tests.
