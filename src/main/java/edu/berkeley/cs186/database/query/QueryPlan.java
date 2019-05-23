@@ -208,15 +208,30 @@ public class QueryPlan {
         // Pass 1: Iterate through all single tables. For each single table, find
         // the lowest cost QueryOperator to access that table. Construct a mapping
         // of each table name to its lowest cost operator.
+        Set<String> s = new HashSet<>();
+        Map<Set, QueryOperator> m = new HashMap<>();
+
+        s.add(startTableName);
+        m.put(s, minCostSingleAccess(startTableName));
+        for (String nextTable : joinTableNames){
+            s = new HashSet<>();
+            s.add(nextTable);
+            m.put(s, minCostSingleAccess(nextTable));
+        }
 
         // Pass i: On each pass, use the results from the previous pass to find the
         // lowest cost joins with each single table. Repeat until all tables have
         // been joined.
+        Map<Set, QueryOperator> p = new HashMap<>(m);
+        while(p.size() > 1) p = minCostJoins(p, m);
 
         // Get the lowest cost operator from the last pass, add GROUP BY and SELECT
         // operators, and return an iterator on the final operator
+        finalOperator = minCostOperator(p);
+        addGroupBy();
+        addProjects();
 
-        return this.execute(); //TODO: HW4 Replace this!!! Allows you to test intermediate functionality
+        return finalOperator.iterator();
 
     }
 
@@ -276,7 +291,7 @@ public class QueryPlan {
      * @throws QueryPlanException
      */
     private QueryOperator addEligibleSelections(QueryOperator source,
-            int except) throws QueryPlanException, DatabaseException {
+                                                int except) throws QueryPlanException, DatabaseException {
         for (int i = 0; i < this.selectColumnNames.size(); i++) {
             if (i == except) {
                 continue;
@@ -311,21 +326,28 @@ public class QueryPlan {
      * @throws QueryPlanException
      */
     public QueryOperator minCostSingleAccess(String table) throws DatabaseException,
-        QueryPlanException {
-        QueryOperator minOp = null;
-
-        // Find the cost of a sequential scan of the table
-        minOp = new SequentialScanOperator(this.transaction, table);
-
+            QueryPlanException {
         //TODO: HW4 Implement
 
         // 1. Find the cost of a sequential scan of the table
+        QueryOperator minOp = new SequentialScanOperator(this.transaction, table);
+        int minCost = minOp.estimateIOCost();
 
         // 2. For each eligible index column, find the cost of an index scan of the
         // table and retain the lowest cost operator
+        int k = -1;
+        for(int c: getEligibleIndexColumns(table)) {
+            QueryOperator o = new IndexScanOperator(transaction, table, selectColumnNames.get(c), selectOperators.get(c), selectDataBoxes.get(c));
+            int cost = o.estimateIOCost();
+            if(cost < minCost) {
+                minCost = cost;
+                minOp = o;
+                k = c;
+            }
+        }
 
-        // 3. Push down SELECT predicates that apply to this table and that were not
-        // used for an index scan
+        // 3. Push down SELECT predicates that apply to this table and that were not used for an index scan
+        minOp = addEligibleSelections(minOp, k);
 
         return minOp;
     }
@@ -342,7 +364,7 @@ public class QueryPlan {
                                           QueryOperator rightOp,
                                           String leftColumn,
                                           String rightColumn) throws QueryPlanException,
-        DatabaseException {
+            DatabaseException {
         QueryOperator minOp = null;
 
         int minCost = Integer.MAX_VALUE;
@@ -373,42 +395,60 @@ public class QueryPlan {
      * @throws QueryPlanException
      */
     private Map<Set, QueryOperator> minCostJoins(Map<Set, QueryOperator> prevMap,
-            Map<Set, QueryOperator> pass1Map) throws QueryPlanException,
-        DatabaseException {
-        Map<Set, QueryOperator> map = new HashMap<Set, QueryOperator>();
-
+                                                 Map<Set, QueryOperator> pass1Map) throws QueryPlanException,
+            DatabaseException {
         //TODO: HW4 Implement
 
         //We provide a basic description of the logic you have to implement
 
         //Input: prevMap (maps a set of tables to a query operator--the operator that joins the set)
         //Input: pass1Map (each set is a singleton with one table and single table access query operator)
-
+        Map<Set, QueryOperator> map = new HashMap<>();
+        QueryOperator leftOp, rightOp;
         //FOR EACH set of tables in prevMap:
+        for(Map.Entry<Set, QueryOperator> p : prevMap.entrySet()) {
+            //FOR EACH join condition listed in the query
+            for(int i = 0; i  < joinTableNames.size(); i++){
+                Set<String> s = new HashSet<>();
+                //get the left side and the right side (table name and column); [0] for table name [1] for column
+                String [] leftSide = getJoinLeftColumnNameByIndex(i);
+                String [] rightSide = getJoinRightColumnNameByIndex(i);
 
-        //FOR EACH join condition listed in the query
-
-        //get the left side and the right side (table name and column)
-
-        /**
-         * Case 1. Set contains left table but not right, use pass1Map to
-         * fetch the right operator to access the rightTable
-         *
-         * Case 2. Set contains right table but not left, use pass1Map to
-         * fetch the right operator to access the leftTable.
-         *
-         * Case 3. Set contains neither or both the left table or right table (contiue loop)
-         *
-         * --- Then given the operator, use minCostJoinType to calculate the cheapest join with that
-         * and the previously joined tables.
-         */
-
-        /**
-         * Create a new set that is the union of the new table and previously
-         * joined tables. Add to result map this value mapping to the result from
-         * minCostJoinType if it doesn't exist or it exists and cost is lower.
-         */
-
+                /**
+                 * Case 1. Set contains left table but not right, use pass1Map to
+                 * fetch the right operator to access the rightTable
+                 */
+                if(p.getKey().contains(leftSide[0]) && !p.getKey().contains(rightSide[0])){
+                    s.add(rightSide[0]);
+                    leftOp = p.getValue();
+                    rightOp = pass1Map.get(s);
+                }
+                /**
+                 * Case 2. Set contains right table but not left, use pass1Map to
+                 * fetch the right operator to access the leftTable.
+                 */
+                else if(!p.getKey().contains(leftSide[0]) && p.getKey().contains(rightSide[0])){
+                    s.add(leftSide[0]);
+                    rightOp = p.getValue();
+                    leftOp = pass1Map.get(s);
+                }
+                /**
+                 * Case 3. Set contains neither or both the left table or right table (contiue loop)
+                 *
+                 * --- Then given the operator, use minCostJoinType to calculate the cheapest join with that
+                 * and the previously joined tables.
+                 */
+                else continue;
+                QueryOperator minCostJoin = minCostJoinType(leftOp, rightOp, leftSide[1], rightSide[1]);
+                /**
+                 * Create a new set that is the union of the new table and previously
+                 * joined tables. Add to result map this value mapping to the result from
+                 * minCostJoinType if it doesn't exist or it exists and cost is lower.
+                 */
+                s.addAll(p.getKey());
+                if(!map.containsKey(s) || minCostJoin.estimateIOCost() < map.get(s).estimateIOCost()) map.put(s, minCostJoin);
+            }
+        }
         return map;
     }
 
@@ -423,7 +463,7 @@ public class QueryPlan {
      * @throws QueryPlanException
      */
     private QueryOperator minCostOperator(Map<Set, QueryOperator> map) throws QueryPlanException,
-        DatabaseException {
+            DatabaseException {
         QueryOperator minOp = null;
         QueryOperator newOp;
         int minCost = Integer.MAX_VALUE;
@@ -508,7 +548,7 @@ public class QueryPlan {
     private void addGroupBy() throws QueryPlanException, DatabaseException {
         if (this.groupByColumn != null) {
             if (this.projectColumns.size() > 2 || (this.projectColumns.size() == 1 &&
-                                                   !this.projectColumns.get(0).equals(this.groupByColumn))) {
+                    !this.projectColumns.get(0).equals(this.groupByColumn))) {
                 throw new QueryPlanException("Can only project columns specified in the GROUP BY clause.");
             }
 
@@ -539,7 +579,7 @@ public class QueryPlan {
      */
 
     public Map<String, List<String>> findInterestingOrders(Map<String, QueryOperator> pass1Map) throws
-        DatabaseException, QueryPlanException {
+            DatabaseException, QueryPlanException {
         throw new UnsupportedOperationException("TODO(hw4_extra): implement");
     }
 }

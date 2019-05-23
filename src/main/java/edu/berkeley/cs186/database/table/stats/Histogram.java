@@ -1,6 +1,6 @@
 package edu.berkeley.cs186.database.table.stats;
 
-import java.util.Iterator;
+import java.util.*;
 
 import edu.berkeley.cs186.database.BaseTransaction;
 import edu.berkeley.cs186.database.databox.DataBox;
@@ -92,13 +92,13 @@ public class Histogram {
 
     private float quantization(DataBox d) {
         switch (d.type().getTypeId()) {
-        case BOOL:   { return (d.getBool()) ? 1.0f : 0.0f; }
+            case BOOL:   { return (d.getBool()) ? 1.0f : 0.0f; }
 
-        case INT:    { return (float) d.getInt(); }
+            case INT:    { return (float) d.getInt(); }
 
-        case FLOAT:  { return d.getFloat(); }
+            case FLOAT:  { return d.getFloat(); }
 
-        case STRING: { return (float) (d.getString().hashCode()); }
+            case STRING: { return (float) (d.getString().hashCode()); }
         }
 
         return 0f;
@@ -117,15 +117,30 @@ public class Histogram {
      */
     public void buildHistogram(BaseTransaction transaction, Table table, int attribute) {
         // TODO: HW4 implement
-
         //1. first calculate the min and the max values
+        Iterator<Record> records = table.iterator(transaction);
+        ArrayList<Float> values = new ArrayList<>();
+
+        if(!records.hasNext()) return;
+        minValue = Float.POSITIVE_INFINITY;
+        maxValue = Float.NEGATIVE_INFINITY;
+        while(records.hasNext()) {
+            float value = quantization(records.next(), attribute);
+            if(value < minValue) minValue = value;
+            if(value > maxValue) maxValue = value;
+            values.add(value);
+        }
 
         //2. calculate the width of each bin
+        int numBuckets = buckets.length;
+        width = (maxValue - minValue)/numBuckets;
 
         //3. create each bucket object
+        for(int i = 0; i < numBuckets; i++) buckets[i] = new Bucket<>(minValue + width*i, minValue + width*(i+1));
 
         //4. populate the data using the increment(value) method
-        throw new UnsupportedOperationException("TODO(hw4): implement");
+        for (Float v : values) buckets[bucketIndex(v)].increment(v);
+
     }
 
     private int bucketIndex(float v) {
@@ -203,7 +218,7 @@ public class Histogram {
         //do not handle non equality predicates on strings
         if (value.type().getTypeId() == TypeId.STRING &&
                 ! (predicate == PredicateOperator.EQUALS ||
-                   predicate == PredicateOperator.NOT_EQUALS) ) {
+                        predicate == PredicateOperator.NOT_EQUALS) ) {
             return stringNonEquality(qvalue);
 
         } else if (predicate == PredicateOperator.EQUALS) {
@@ -270,27 +285,31 @@ public class Histogram {
      *  and set all other values to 0.
      */
     private float [] allEquality(float qvalue) {
-        float [] result = new float[this.buckets.length];
-
+        int numBuckets = buckets.length;
+        float [] result = new float[numBuckets];
         // TODO: HW4 implement;
+        for(int i = 0; i < numBuckets; i++) result[i] = 0;
+        if(qvalue > maxValue || qvalue < minValue) return result;
+        int k = bucketIndex(qvalue);
+        result[k] = 1/(float)buckets[k].getDistinctCount();
 
-        throw new UnsupportedOperationException("TODO(hw4): implement");
-
-        // return result;
+        return result;
     }
 
     /**
-      *  Given a quantized value, scale the bucket that contains the value by 1-1/distinctCount,
-      *  and set all other values to 1.
-      */
+     *  Given a quantized value, scale the bucket that contains the value by 1-1/distinctCount,
+     *  and set all other values to 1.
+     */
     private float [] allNotEquality(float qvalue) {
-        float [] result = new float[this.buckets.length];
-
+        int numBuckets = buckets.length;
+        float [] result = new float[numBuckets];
         // TODO: HW4 implement;
+        for(int i = 0; i < numBuckets; i++){ result[i] = 1; }
+        if(qvalue > maxValue || qvalue < minValue) return result;
+        int k = bucketIndex(qvalue);
+        result[k] =  1 - 1/(float)buckets[k].getDistinctCount();
 
-        throw new UnsupportedOperationException("TODO(hw4): implement");
-
-        // return result;
+        return result;
     }
 
     /**
@@ -298,27 +317,41 @@ public class Histogram {
      *  and set all other buckets to 1 if higher and 0 if lower.
      */
     private float [] allGreaterThan(float qvalue) {
-        float [] result = new float[this.buckets.length];
-
+        int numBuckets = buckets.length;
+        float [] result = new float[numBuckets];
         // TODO: HW4 implement;
-
-        throw new UnsupportedOperationException("TODO(hw4): implement");
-
-        // return result;
+        int k = bucketIndex(qvalue);
+        for(int i = 0; i < numBuckets; i++){
+            if (i > k) {
+                result[i] = 1;
+            } else if(i < k){
+                result[i] = 0;
+            } else{
+                result[k] = (buckets[k].getEnd() - qvalue)/width;
+            }
+        }
+        return result;
     }
 
     /**
-      *  Given a quantized value, scale the bucket that contains the value by (q-start)/width,
-      *  and set all other buckets to 1 if lower and 0 if higher.
-      */
+     *  Given a quantized value, scale the bucket that contains the value by (q-start)/width,
+     *  and set all other buckets to 1 if lower and 0 if higher.
+     */
     private float [] allLessThan(float qvalue) {
-        float [] result = new float[this.buckets.length];
-
+        int numBuckets = buckets.length;
+        float [] result = new float[numBuckets];
         // TODO: HW4 implement;
-
-        throw new UnsupportedOperationException("TODO(hw4): implement");
-
-        // return result;
+        int k = bucketIndex(qvalue);
+        for(int i = 0; i < numBuckets; i++){
+            if (i < k) {
+                result[i] = 1;
+            } else if(i > k){
+                result[i] = 0;
+            } else{
+                result[k] = (qvalue - buckets[k].getStart())/width;
+            }
+        }
+        return result;
     }
 
     // Cost Estimation ///////////////////////////////////////////////////////////////////
